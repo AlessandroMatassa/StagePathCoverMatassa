@@ -4,141 +4,405 @@
 #include "graph.hpp"
 #include <vector>
 #include <algorithm>
+#include <unordered_map>
+#include <queue>
+
+// =====================
+// Strutture base
+// =====================
+//questo struct mi serve per tenere traccia del nodo precedente e se l'arco è forward o backward durante 
+//la ricerca del path da source a sink nel grafo residuo
+struct Parent {
+    int prev; // nodo precedente (indice nella lista dei nodi)
+    bool forward; // true se l'arco è forward, false se è backward
+};
+//questa struct mi serve per tenere traccia della demand e del flow di ogni arco durante l'esecuzione dell'algoritmo
+struct EdgeState {
+    int demand = 0;
+    int flow = 0;
+};
 
 struct CoverState {
-  //  std::vector<int> m; 
-    std::vector<int> u; // valore percorso dal nodo all'indice 
-    std::vector<int> covered; //indica se un nodo è coperto o no
-
+    std::vector<int> u;
+    std::vector<int> covered;
+    std::unordered_map<long long, EdgeState> edgeData; //
+//il costruttore inizializza i vettori u e covered con 0 per ogni nodo del grafo
     CoverState(int n) {
-   //     m.resize(n, 1);
         u.resize(n, 0);
         covered.resize(n, 0);
+    }
+// questa funzione mi serve per generare una chiave univoca per ogni arco (u, v) da usare nell'edgeData
+    long long key(int u, int v) const {
+        //viene creata una chiave univoca combinando u e v in un long long, con u nei primi 32 bit e v nei secondi 32 bit
+        return (static_cast<long long>(u) << 32) | v;
+    }
+ // questa funzione mi serve per accedere allo stato di un arco (u, v) usando la chiave generata dalla funzione key
+    EdgeState& getEdge(int u, int v) {
+        return edgeData[key(u, v)];
     }
 };
 
 class Cover {
 public:
+//metodo che serve per block decompose
+static std::vector<std::vector<int>> convertMPCtoOriginalGraph(
+    Graph& gStar,
+    Graph& gOriginal,
+    const std::vector<std::vector<int>>& pathsGstar)
+{
+    std::vector<std::vector<int>> result;
 
-    static std::vector<std::vector<int>> computeInitialPathCover(Graph& g) {
+    for (const auto& path : pathsGstar) {
 
-        std::vector<std::vector<int>> paths;
-        std::vector<int> topo = topologicalSort(g);
-        CoverState state(g.nodes.size());
+        std::vector<int> clean;
 
-        while (true) { //si ferma quando sono stati coperti tutti i nodi sono coperti o quando u max è zero
+        for (int v : path) {
 
-            computeU(g, topo, state); //calcola u per ogni nodo, partendo dall'ordinamento topologico e dallo stato della copertura
+            const std::string& name = gStar.nodes[v].name;
 
-            int start = findBestStart(state);
+            // prendiamo solo nodi m
+            if (!name.empty() && name.back() == 'm') {
 
-            if (start == -1 || state.u[start] == 0)
-                break;
+                // rimuovo la m
+                std::string originalName = name.substr(0, name.size() - 1);
 
-            std::vector<int> path = extractPath(g, state, start);
+                // recupero indice nel grafo originale
+                int originalIndex = gOriginal.nodeIndex[originalName];
 
-            markCovered(state, path); //segna i nodi coperti dal percorso appena estratto, dato lo stato della copertura e il percorso appena estratto
-
-            paths.push_back(path); //aggiunge il percorso appena estratto alla lista dei percorsi
-
-            if (allCovered(state)) 
-                break;
-        }
-
-        return paths;
-    }
-
-private:
- //algoritmo per calcolare u, partendo dall'ordinamento topologico e dallo stato della copertura
- // u sarebbe il numero di nodi coperti da un percorso che parte da v, se v non è coperto, altrimenti 0
-    static void computeU(Graph& g,
-                         const std::vector<int>& topo,
-                         CoverState& state) {
-
-        for (auto it = topo.rbegin(); it != topo.rend(); ++it) { 
- 
-            int v = *it; 
-
-            int best = 0; //best è il massimo contributo dei successori di v, inizialmente 0
-
-            // Scorre tutti i successori di v (archi in g.adj[v]) e usa state.u[e.to] per tenere il massimo contributo raggiungibile.
-            for (auto& e : g.adj[v]) {
-                best = std::max(best, state.u[e.to]); //prende il massimo tra best e u del nodo di destinazione dell'arco e
-            }
-
-            int val = (state.covered[v] == 0 ? 1 : 0); // se v non è coperto, val è 1, altrimenti è 0
-
-            state.u[v] = val + best; // u di v è 1 (se v non è coperto) più il massimo contributo dei suoi successori
-        }
-    }
-//algoritmo per trovare il nodo da cui partire, ovvero quello con u più alto
-// se tutti i nodi sono coperti, o se il massimo è 0, allora ritorna -1
-// se invece c'è un nodo con u > 0, allora ritorna il nodo con u più alto
-    static int findBestStart(CoverState& state) {
-
-        int best = -1;
-        int node = -1;
-
-        for (int i = 0; i < state.u.size(); i++) {
-
-            if (state.u[i] > best) {
-                best = state.u[i];
-                node = i;
+                clean.push_back(originalIndex);
             }
         }
 
-        return node;
+        if (!clean.empty())
+            result.push_back(clean);
     }
-//ritorna il percorso che parte da start e segue sempre l'arco con u più alto, 
-//fino a quando non si arriva a un nodo senza archi uscenti o con u = 0
-    static std::vector<int> extractPath(Graph& g,
-                                         CoverState& state,
-                                         int start) {
+
+    return result;
+}
+
+
+static std::vector<std::vector<int>> computeInitialPathCover(Graph& g, CoverState& state) {
+
+    std::vector<std::vector<int>> paths;
+    std::vector<int> topo = topologicalSort(g);
+
+    initializeDemands(g, state);
+
+    while (true) {
+
+        computeU(g, topo, state);
+
+        int start = findBestStart(state);
+
+        if (start == -1 || state.u[start] == 0)
+            break;
+
+        std::vector<int> path = extractPath(g, state, start);
+
+        markCovered(state, path, g);
+
+        paths.push_back(path);
+
+        if (allCovered(state))
+            break;
+    }
+
+    return paths;
+}
+
+// riduce il flow lungo tutti i path da source a sink finché è possibile, 
+//decrementando il flow di 1 per ogni arco del path
+static void reduceFlow(Graph& g, CoverState& state, int source, int sink) {
+
+    while (true) {
+        // costruisce il grafo residuo e cerca un path da source a sink
+        std::vector<Parent> parent(g.nodes.size(), {-1, true}); //Vettore di Parent per tenere traccia del path trovato da source a sink nel grafo residuo
+        //Se non esiste un path da source a sink, esce dal ciclo
+        if (!findAugmentingPath(g, state, source, sink, parent))
+            break;
+//altrimenti, se esiste un path da source a sink, decrementa il flow di 1 per ogni arco del path
+        augmentFlow(g, state, source, sink, parent);
+    }
+}
+
+//*************+da cambiare il modo in cui si ottiene l'edge, la map non va beme****************
+
+// estrae i path da source a sink finché è possibile, decrementando il flow di 1 per ogni arco del path
+//ritorna una lista di path, dove ogni path è rappresentato come una lista di nodi
+static std::vector<std::vector<int>> extractFinalPaths(Graph& g,
+                                                       CoverState& state,
+                                                       int source,
+                                                       int sink) {
+
+    std::vector<std::vector<int>> result;
+    // finché esiste un path da source a sink con flow > 0, estrai il path e decrementa il flow di 1 per ogni arco del path
+    while (true) {
 
         std::vector<int> path;
-        int v = start;
+        int v = source;
+        // segue il path da source a sink, sempre seguendo un arco con flow > 0
+        while (v != sink) {
+            // aggiunge v al path
+            path.push_back(v);
+            
+            bool found = false; //found mi serve per tenere traccia se ho trovato un arco con flow > 0
+            // cerca un arco uscente da v con flow > 0
+            for (auto& e : g.adj[v]) {
+                // se trova un arco con flow > 0, decrementa il flow di 1 e
+                // aggiorna v al nodo di destinazione dell'arco
+                auto& edge = state.getEdge(v, e.to);
 
-        while (true) {
+                if (edge.flow > 0) {
 
-            path.push_back(v); // aggiungo v al percorso
-
-            int best = -1;
-            int next = -1;
-
-            for (auto& e : g.adj[v]) { // per ogni arco uscente da v, 
-                                //se u del nodo di destinazione è più alto del best, aggiorna best e next
-
-                if (state.u[e.to] > best) {
-                    best = state.u[e.to];
-                    next = e.to;
+                    edge.flow--;
+                    v = e.to;
+                    found = true;
+                    break;
                 }
             }
 
-            if (next == -1) //caso in cui non ci sono archi uscenti
+            //da testare
+//se non si trova un arco con flow > 0, esce dal ciclo
+            if (!found)
                 break;
+        }
+// se il path è vuoto o non termina in sink, esce dal ciclo
+        if (path.empty() || v != sink)
+            break;
+// altrimenti, se il path termina in sink, lo aggiunge alla lista dei risultati
+        path.push_back(sink);
+        //aggiunge il path alla lista dei risultati
+        result.push_back(path);
+    }
 
-            v = next;
+    return result;
+}
+
+
+
+private:
+
+// calcola u[v] per ogni nodo v, partendo dai nodi senza archi uscenti e risalendo all'indietro
+static void computeU(Graph& g,
+                     const std::vector<int>& topo,
+                     CoverState& state) {
+
+    for (auto it = topo.rbegin(); it != topo.rend(); ++it) {
+
+        int v = *it;
+        int best = 0;
+
+        for (auto& e : g.adj[v]) {
+            best = std::max(best, state.u[e.to]);
         }
 
-        return path;
+        int val = (state.covered[v] == 0 ? 1 : 0);
+        state.u[v] = val + best;
     }
- // algoritmo per segnare i nodi coperti da un percorso, dato lo stato della copertura e il percorso appena estratto
-    static void markCovered(CoverState& state,
-                           const std::vector<int>& path) {
+}
 
-        for (int v : path) {
-            state.covered[v] = 1;
+static int findBestStart(CoverState& state) {
+
+    int best = -1;
+    int node = -1;
+
+    for (int i = 0; i < state.u.size(); i++) {
+        if (state.u[i] > best) {
+            best = state.u[i];
+            node = i;
         }
     }
- // algoritmo per controllare se tutti i nodi sono coperti, dato lo stato della copertura
-    static bool allCovered(CoverState& state) { //prende in input lo stato della copertura
 
-        for (int x : state.covered) // se c'è un nodo non coperto, ritorna false
-            if (x == 0)
-                return false;
+    return node;
+}
+//questo metodo estrae un path a partire da un nodo start 
+//seguendo sempre l'arco con il valore u più alto, fino a 
+//quando non si raggiunge un nodo senza archi uscenti o tutti gli archi uscenti hanno u=0
+static std::vector<int> extractPath(Graph& g,
+                                     CoverState& state,
+                                     int start) {
 
-        return true;
+    std::vector<int> path;
+    int v = start;
+
+    while (true) {
+
+        path.push_back(v);
+
+        int best = -1;
+        int next = -1;
+
+        for (auto& e : g.adj[v]) {
+            if (state.u[e.to] > best) {
+                best = state.u[e.to];
+                next = e.to;
+            }
+        }
+
+        if (next == -1)
+            break;
+
+        v = next;
     }
+
+    return path;
+}
+
+// fa 3 cose:
+// Marca nodi come coperti
+//incrementa il flow degli archi del path 
+//collega il source al primo nodo del path e l'ultimo nodo del path al sink, incrementando il flow di questi archi
+static void markCovered(CoverState& state,
+                        const std::vector<int>& path,
+                        Graph& g) {
+
+    if (path.empty()) return;
+
+    int source = g.nodeIndex["global_source"];
+    int sink   = g.nodeIndex["global_sink"];
+
+    // source -> primo nodo
+    state.getEdge(source, path[0]).flow++;
+
+    for (int i = 0; i < path.size(); i++) {
+
+        int v = path[i];
+        state.covered[v] = 1;
+
+        // archi del path
+        if (i < path.size() - 1) {
+            int u = path[i];
+            int w = path[i+1];
+
+            state.getEdge(u, w).flow++;
+        }
+    }
+
+    // ultimo -> sink
+    state.getEdge(path.back(), sink).flow++;
+}
+// controlla se tutti i nodi sono coperti e ritorna true se lo sono, false altrimenti
+static bool allCovered(CoverState& state) {
+
+    for (int x : state.covered)
+        if (x == 0)
+            return false;
+
+    return true;
+}
+
+// imposta la demand a 1 per gli archi da Am a Ap, 0 altrimenti
+static void initializeDemands(Graph& g, CoverState& state) {
+
+    for (int u = 0; u < g.nodes.size(); u++) {
+
+        for (auto& e : g.adj[u]) {
+
+            std::string from = g.nodes[u].name;
+            std::string to   = g.nodes[e.to].name;
+
+            auto& edge = state.getEdge(u, e.to);
+
+            if (!from.empty() && !to.empty() &&
+                from.back() == 'm' && to.back() == 'p')
+                edge.demand = 1;
+            else
+                edge.demand = 0;
+
+            edge.flow = 0;
+        }
+    }
+}
+
+// questo metodo costruisce il grafo residuo e cerca un path da source a sink usando BFS,
+//ritorna true se esiste un path da source a sink, false altrimenti.
+static bool findAugmentingPath(Graph& g,
+                              CoverState& state,
+                              int s, //s è il nodo source, t è il nodo sink
+                              int t,
+                              std::vector<Parent>& parent) {
+// costruisce il grafo residuo e cerca un path da source a sink usando BFS,
+    std::queue<int> q;
+    //vettore di booleani per tenere traccia dei nodi visitati
+    std::vector<bool> visited(g.nodes.size(), false);
+//inizializza la coda con il nodo source e marca source come visitato
+    q.push(s);
+    visited[s] = true;
+
+    while (!q.empty()) {
+        //prende un nodo u dalla coda
+        int u = q.front(); q.pop();
+
+        // ciclo sugli archi uscenti da u per considerare gli archi forward
+        for (auto& e : g.adj[u]) {
+
+            int v = e.to; //e.to è il nodo di destinazione dell'arco uscente da u 
+            auto& edge = state.getEdge(u, v); //edge è lo stato dell'arco da u a v, che contiene la demand e il flow su quell'arco
+            //se l'arco da u a v ha flow > demand e v non è stato visitato, marca v come visitato, imposta parent[v] a {u, true}
+
+            // residuo forward
+            if (edge.flow > edge.demand && !visited[v]) {
+
+                visited[v] = true;
+                parent[v] = {u, true};
+                q.push(v);
+            }
+        }
+
+        // ciclo sui predecessori di u per considerare anche gli archi backward
+        for (int v : g.nodes[u].predecessors) {
+        // residuo backward
+            auto& edge = state.getEdge(v, u);
+            //se l'arco da v a u ha flow > 0 e v non è stato visitato, marca v come visitato, 
+            //imposta parent[v] a {u, false} e aggiungi v alla coda
+            //in pratica l'arco da v a u è un arco backward se esiste un arco da v a u nel grafo originale e il flow su quell'arco è maggiore di 0, 
+            //quindi possiamo "restituire" flow lungo quell'arco backward per cercare di trovare un path da source a sink nel grafo residuo
+            if (edge.flow > 0 && !visited[v]) {
+
+                visited[v] = true;
+                parent[v] = {u, false};
+                q.push(v);
+            }
+        }
+    }
+    //ritorna true se esiste un path da source a sink, false altrimenti
+    return visited[t];
+}
+       
+
+// decrementa il flow di 1 per ogni arco del path da s a t, seguendo le indicazioni in parent
+
+static void augmentFlow(Graph& g,
+                        CoverState& state,
+                        int s,
+                        int t,
+                        std::vector<Parent>& parent) {
+//partendo da t, risale il path fino a s, decrementando il flow di 1 per ogni arco del path
+    int v = t;
+//finché v non è uguale a s, prendi il nodo precedente u e verifica 
+//se l'arco da u a v è un arco forward o backward. 
+//Se è un arco forward, 
+//decrementa il flow di 1. Se è un arco backward, incrementa il flow di 1. 
+//Poi aggiorna v a u e continua il ciclo
+    while (v != s) {
+
+        int u = parent[v].prev;
+        //se l'arco da u a v è un arco forward, decrementa il flow di 1. 
+        //Se è un arco backward, incrementa il flow di 1.
+        if (parent[v].forward)
+            state.getEdge(u, v).flow--;
+        else
+            state.getEdge(v, u).flow++;
+
+        v = u;
+    }
+}
+
+
+//metodo che mi serve per la decomposizione in blocchi
+
+
+
 };
 
 #endif

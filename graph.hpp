@@ -9,6 +9,13 @@
 #include <queue>
 #include <string>
 
+//in questa struct salvo i path del file gfa, in modo da poterli convertire in z e delta
+struct GFAPath {
+    std::string name;
+    std::vector<int> nodes;
+};
+
+
 // Nodo
 struct Node {
     std::string name;
@@ -28,13 +35,14 @@ struct Node {
     }
 };
 
+
 // Arco
 struct Edge {
     // il nodo di partenza è implicito nella lista di adiacenza
     int to;
 
-    int demand = 0;
-    int flow = 0;
+   //int demand = 0;     ////////********** DA RIMUOVERE **********////////
+    //int flow = 0;       ////////********** DA RIMUOVERE **********////////
 };
 
 // Grafo
@@ -66,15 +74,21 @@ public:
     }
 
     void addEdge(const std::string& from,
-                 const std::string& to,
-                 int demand = 0,
-                 int flow = 0) {
+                 const std::string& to)
+                    
+                 { 
 
         int u = addNode(from);
         int v = addNode(to);
 
+        // evita duplicati
+    for (auto& e : adj[u]) {
+        if (e.to == v)
+            return;
+    }
+
         // arco uscente
-        adj[u].push_back({v, demand, flow});
+        adj[u].push_back({v}); // i due zeri
 
         // aggiorna predecessori
         nodes[v].predecessors.push_back(u);
@@ -177,7 +191,7 @@ void resetPredecessor(Graph& g) {
     }
 }
 
-// reset flow
+/* reset flow       ////////********** DA RIVEDERE 
 void resetFlow(Graph& g) {
 
     for (auto& list : g.adj)
@@ -185,7 +199,7 @@ void resetFlow(Graph& g) {
         for (auto& e : list)
 
             e.flow = 0;
-}
+} */
 
 //non so ancora se mi serve in realtà
 Graph deepCopy(Graph& g) {
@@ -197,7 +211,7 @@ Graph deepCopy(Graph& g) {
 
     for (int u = 0; u < g.nodes.size(); u++)
         for (auto& e : g.adj[u])
-            copy.addEdge(g.nodes[u].name, g.nodes[e.to].name, e.demand, e.flow);
+            copy.addEdge(g.nodes[u].name, g.nodes[e.to].name); ////////********** DA RIMUOVERE **********////////
 
     return copy;
 }
@@ -218,14 +232,14 @@ Graph convertGraph(Graph& g) {
             gStar.nodes[gStar.nodes.size() - 1].setColor(1);
         gStar.addNode(p);
             gStar.nodes[gStar.nodes.size() - 1].setColor(1);
-        gStar.addEdge(m, p, 1, 0);
+        gStar.addEdge(m, p );
 
     }
     for(int u = 0; u < g.nodes.size(); u++) // per ogni nodo u del grafo originale 
     {
         for(auto &e : g.adj[u]) // per ogni arco e uscente da u
         {
-            gStar.addEdge(g.nodes[u].name + "p", g.nodes[e.to].name + "m", 0, 0);
+            gStar.addEdge(g.nodes[u].name + "p", g.nodes[e.to].name + "m");
         }
     }
 gStar.addNode("global_source");
@@ -234,8 +248,8 @@ gStar.addNode("global_sink");
 gStar.nodes[gStar.nodes.size() - 1].setColor(1);
 for(int u = 0; u < g.nodes.size(); u++) //questo ciclo aggiunge un arco da global_source a Am e da Ap a global_sink per ogni nodo u del grafo originale
 {
-    gStar.addEdge("global_source", g.nodes[u].name + "m", 0, 0);
-    gStar.addEdge(g.nodes[u].name + "p", "global_sink", 0, 0);
+    gStar.addEdge("global_source", g.nodes[u].name + "m");
+    gStar.addEdge(g.nodes[u].name + "p", "global_sink");
 }
 
 
@@ -245,14 +259,143 @@ for(int u = 0; u < g.nodes.size(); u++) //questo ciclo aggiunge un arco da globa
    // da fare
 
 }
+struct GFAGraph {
+    Graph g;
+    std::vector<GFAPath> paths;
+};
 
 
-// parser
-Graph readGFA(const std::string& filename) {
 
-   // ancora da fare
+// parser Da fare
+GFAGraph readGFA(const std::string& filename) {
 
+    GFAGraph result;
+    Graph& g = result.g;
+
+    std::ifstream file(filename);
+
+    if (!file.is_open()) {
+        std::cerr << "Errore apertura file\n";
+        return result;
+    }
+
+    std::string line;
+
+    while (std::getline(file, line)) {
+
+        if (line.empty()) continue;
+
+        std::stringstream ss(line);
+        std::string type;
+        ss >> type;
+
+        // =====================
+        // NODI
+        // =====================
+        if (type == "S") {
+
+            std::string name;
+            ss >> name; 
+
+            g.addNode(name);
+        }
+
+        // =====================
+        // ARCHI
+        // =====================
+        else if (type == "L") {
+
+            std::string from, fromOrient;
+            std::string to, toOrient;
+            std::string overlap;
+
+            ss >> from >> fromOrient >> to >> toOrient >> overlap;
+
+            if (!from.empty() && !to.empty())
+                g.addEdge(from, to);
+        }
+
+        
+        // PATH
+        else if (type == "P") {
+
+            std::string pathName, segmentList, X;
+            ss >> pathName >> segmentList >> X;
+
+            GFAPath p;
+            p.name = pathName;
+
+            std::stringstream segStream(segmentList); // segmentList è una stringa del tipo "A+,B-,C+" che rappresenta i nodi del path e il loro orientamento, segStream serve a scomporre questa stringa nei singoli segmenti (A+, B-, C+)
+            std::string token; // token memorizza temporaneamente ogni segmento scomposto da segStream
+
+            while (std::getline(segStream, token, ',')) { //Finché riesce a scomporre segmentList in token usando la virgola come delimitatore, continua a processare ogni token
+
+                if (token.empty()) continue; //potrei anche toglierlo
+
+                // rimuove orientamento (+ o -)
+                std::string nodeName = token.substr(0, token.size() - 1);
+
+                if (g.nodeIndex.count(nodeName)) {
+                    p.nodes.push_back(g.nodeIndex[nodeName]);
+                }
+            }
+
+            if (!p.nodes.empty())
+                result.paths.push_back(p);
+        }
+
+        // ignora tutto il resto
+        else {
+            continue;
+        }
+    }
+
+    return result;
 }
+
+
+static std::vector<std::vector<int>> convertGFAPathsToZ(
+    Graph& g,
+    const std::vector<GFAPath>& gfaPaths, std::vector<int> topo
+)
+{
+    // da modificare assumere sia già topologico
+   // auto topo = topologicalSort(g);
+
+    int num_nodes = topo.size();
+
+    std::vector<int> topoIndex(g.nodes.size()); 
+
+    for (int i = 0; i < num_nodes; i++) {
+        topoIndex[topo[i]] = i;
+    }
+
+    // COSTRUZIONE Z
+    std::vector<std::vector<int>> Z_all;
+
+    for (const auto& p : gfaPaths) {
+
+        std::vector<int> z_string(num_nodes, 0);
+
+        for (int node : p.nodes)
+         {
+
+                //penso di poterlo togliere
+            if (node >= 0 && node < g.nodes.size()) {
+                int col = topoIndex[node];
+                z_string[col] = 1;
+            }
+        }
+
+        Z_all.push_back(z_string);
+    }
+
+    return Z_all;
+}
+
+
+
+
 
 
 #endif
