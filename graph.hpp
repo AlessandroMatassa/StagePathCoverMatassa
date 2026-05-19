@@ -389,13 +389,141 @@ static std::vector<std::vector<int>> convertGFAPathsToZ(
 
         Z_all.push_back(z_string);
     }
-
     return Z_all;
 }
 
 
 
 
+GFAGraph readGFA_W(const std::string& filename)
+{
+    GFAGraph result;
+    Graph& g = result.g;
+
+    std::ifstream file(filename);
+
+    if (!file.is_open()) {
+        std::cerr << "Errore apertura file\n";
+        return result;
+    }
+
+    std::string line;
+
+    while (std::getline(file, line)) {
+
+        if (line.empty()) continue;
+
+        std::stringstream ss(line);
+
+        std::string type;
+        ss >> type;
+
+        // =====================
+        // SEGMENTI
+        // =====================
+
+        if (type == "S") {
+
+            std::string name;
+            ss >> name;
+
+            g.addNode(name);
+        }
+
+        // =====================
+        // LINK
+        // =====================
+
+        else if (type == "L") {
+
+            std::string from;
+            std::string fromOrient;
+
+            std::string to;
+            std::string toOrient;
+
+            std::string overlap;
+
+            ss >> from
+               >> fromOrient
+               >> to
+               >> toOrient
+               >> overlap;
+
+            if (!from.empty() && !to.empty()) {
+                g.addEdge(from, to);
+            }
+        }
+
+        // =====================
+        // WALK (FORMATO NUOVO)
+        // =====================
+
+        else if (type == "W") {
+
+            std::string sampleName;
+            std::string haplotype;
+            std::string sequenceName;
+            std::string startPos;
+            std::string endPos;
+            std::string walkString;
+
+            ss >> sampleName
+               >> haplotype
+               >> sequenceName
+               >> startPos
+               >> endPos
+               >> walkString;
+
+            GFAPath p;
+
+            p.name = sampleName;
+
+            std::string currentNode;
+
+            for (char c : walkString) {
+
+                // nuovo nodo
+                if (c == '>' || c == '<') {
+
+                    // salva nodo precedente
+                    if (!currentNode.empty()) {
+
+                        if (g.nodeIndex.count(currentNode)) {
+
+                            p.nodes.push_back(
+                                g.nodeIndex[currentNode]
+                            );
+                        }
+
+                        currentNode.clear();
+                    }
+                }
+                else {
+
+                    currentNode += c;
+                }
+            }
+
+            // ultimo nodo
+            if (!currentNode.empty()) {
+
+                if (g.nodeIndex.count(currentNode)) {
+
+                    p.nodes.push_back(
+                        g.nodeIndex[currentNode]
+                    );
+                }
+            }
+
+            if (!p.nodes.empty()) {
+                result.paths.push_back(p);
+            }
+        }
+    }
+
+    return result;
+}
 
 
 #endif

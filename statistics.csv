@@ -1,0 +1,15 @@
+GLOBAL_STATS
+numNodes;numEdges;numZ;mpcSize;averageZLength;medianZLength;averageBlocks;medianBlocks;averageBlockLength;medianBlockLength;maxBlockLength;minBlockLength;fragmentedPaths;tinyBlocks;tinyBlocksPercent;tinyBlocksChar;tinyBlocksCharPercent;fragmentedPathsChar;mostFragmentedPath;averageOutdegree;pathUsagePercent
+161;164;9;2;157;157;2.88889;3;54.3462;40;139;18;0;0;0;3;11.5385;0;4;1.01863;100
+
+Z_STATS
+zIndex;zLength;numBlocks;averageBlockLength;maxBlockLength;minBlockLength;tinyBlocks;tinyBlocksChar;tinyBlocksCharPercent;fragmentedPathChar
+0;157;3;52.3333;88;29;0;0;0;0
+1;157;3;52.3333;98;29;0;0;0;0
+2;157;3;52.3333;88;29;0;0;0;0
+3;157;3;52.3333;88;29;0;0;0;0
+4;157;2;78.5;139;18;0;1;50;0
+5;157;4;39.25;88;18;0;1;25;0
+6;157;3;52.3333;88;29;0;0;0;0
+7;157;3;52.3333;88;29;0;0;0;0
+8;157;2;78.5;139;18;0;1;50;0

@@ -11,6 +11,8 @@
 struct  longestMatchResult {
     int path; //il numero del path che viene seguito in un dato blocco
     int length; //la lunghezza del path più lungo trovato
+    int matchedOnes; //il numero di 1 che sono stati matchati in questo blocco
+    int startIndex; //l'indice di z da cui inizia il blocco
 };
 struct matchedBlock {
     std::vector<int> path; //la lista di interi che ha n volte 
@@ -33,6 +35,14 @@ class BlockDecompose
         int index = 0;
         int n = delta[0].size(); //n numero colonne di delta --> numeri di nodi
 
+        ////////////////////////////////////////////////////////////////////////////////////
+        ////////////////////////////////////////////////////////////////////////////////////
+        ////////////////////////////////////////////////////////////////////////////////////
+        std::vector<int> currentNodeIndex(num_rows, 0);
+        ////////////////////////////////////////////////////////////////////////////////////
+        ////////////////////////////////////////////////////////////////////////////////////
+        ////////////////////////////////////////////////////////////////////////////////////
+
         matchedBlock matchedBlockList;
             while (index < n) 
             {
@@ -47,6 +57,7 @@ class BlockDecompose
                 longestMatchResult result = longestMatch(z, delta, index); // auto [p, l] = longestMatch(z, delta, index)
                 int p = result.path;
                 int l = result.length;
+                if (result.path != -1) {result.startIndex =currentNodeIndex[result.path];}
                 /*  
                 
                                                                 while z[index + l − 1] = 0 do //p è il path restituito da longest match
@@ -71,6 +82,7 @@ class BlockDecompose
                 {    //aggiungo p ripetuto l volte a matched block
                     matchedBlockList.path.push_back(p);
                 }
+                if (result.path != -1) {currentNodeIndex[result.path]+= result.matchedOnes;}
                 
                 matchedBlockList.Blocks.push_back(result);
                 
@@ -80,11 +92,14 @@ class BlockDecompose
 
 
 longestMatchResult longestMatch(const std::vector<int>& z, const std::vector<std::vector<int>>& delta, int index)
-{
+{  
     longestMatchResult result;
 
     int best_path = -1;
     int best_len = 0;
+
+    int best_matched_ones = 0; //new
+    
 
     int num_paths = delta.size(); 
     int n = z.size();
@@ -92,6 +107,8 @@ longestMatchResult longestMatch(const std::vector<int>& z, const std::vector<std
     for (int p = 0; p < num_paths; p++) {
 
         int len = 0;
+                int matchedOnes = 0;
+
 
                                                 /*  while (index + len < n &&
                                                         delta[p][index + len] == z[index + len]) */ 
@@ -100,18 +117,30 @@ longestMatchResult longestMatch(const std::vector<int>& z, const std::vector<std
     // del blocco che sto considerando incremento len                                                     
            while (index + len < n &&
        delta[p][index + len] == z[index + len]){
+
+        if (
+                z[index + len] == 1 &&
+                delta[p][index + len] == 1
+            ) 
+            {
+                matchedOnes++;
+            }
+
             len++;
         }
 
         if (len > best_len) {
             best_len = len;
             best_path = p;
+            best_matched_ones = matchedOnes;
+            
+
         }
     }
 
     result.path = best_path;
     result.length = best_len;
-
+    result.matchedOnes = best_matched_ones;
     return result;
 }
 
