@@ -3,7 +3,7 @@
 #include "blockDecompose.hpp"
 #include "wholeAlgoritmo.hpp"
 #include "statistics.hpp"
-
+#include "metrics.hpp"
 #include <iostream>
 #include <fstream>
 #include <string>

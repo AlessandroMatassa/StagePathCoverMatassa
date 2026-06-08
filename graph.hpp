@@ -19,6 +19,7 @@ struct GFAPath {
 // Nodo
 struct Node {
     std::string name;
+    int sequenceLength;
 
     // DFS colors
     int color = 0; // 0 bianco, 1 grigio, 2 nero
@@ -57,6 +58,10 @@ public:
 
     int addNode(const std::string& name) {
 
+         if (nodeIndex.count(name)) {
+            return nodeIndex[name];
+        }
+
         if (nodeIndex.count(name))
             return nodeIndex[name];
 
@@ -66,12 +71,43 @@ public:
 
         Node n;
         n.name = name;
+        n.sequenceLength = 0;
+        
 
         nodes.push_back(n);
         adj.push_back({});
 
         return index;
     }
+
+
+
+ int addNode(const std::string& name, int sequenceLength) {
+
+         if (nodeIndex.count(name)) {
+            return nodeIndex[name];
+        }
+
+        if (nodeIndex.count(name))
+            return nodeIndex[name];
+
+        int index = nodes.size();
+
+        nodeIndex[name] = index;
+
+        Node n;
+        n.name = name;
+        n.sequenceLength = sequenceLength;
+        
+
+        nodes.push_back(n);
+        adj.push_back({});
+
+        return index;
+    }
+
+
+   
 
     void addEdge(const std::string& from,
                  const std::string& to)
@@ -289,9 +325,9 @@ GFAGraph readGFA(const std::string& filename) {
         std::string type;
         ss >> type;
 
-        // =====================
+        
         // NODI
-        // =====================
+        
         if (type == "S") {
 
             std::string name;
@@ -300,9 +336,9 @@ GFAGraph readGFA(const std::string& filename) {
             g.addNode(name);
         }
 
-        // =====================
+        
         // ARCHI
-        // =====================
+        
         else if (type == "L") {
 
             std::string from, fromOrient;
@@ -425,9 +461,11 @@ GFAGraph readGFA_W(const std::string& filename)
         if (type == "S") {
 
             std::string name;
+            std::string sequence;
             ss >> name;
+            ss>> sequence;
 
-            g.addNode(name);
+            g.addNode(name, sequence.size());
         }
 
         // =====================

@@ -4,7 +4,9 @@
 #include "graph.hpp"
 #include "cover.hpp"
 #include "blockDecompose.hpp"
-
+#include "metrics.hpp"
+#include "pipelineResult.hpp"
+#include "BlockOptimizer.hpp"
 #include <vector>
 #include <string>
 #include <iostream>
@@ -15,7 +17,8 @@
 
 
 
-struct PipelineResult {
+
+/* struct PipelineResult {
 
     Graph g;
 
@@ -28,7 +31,7 @@ struct PipelineResult {
     std::vector<std::vector<int>> Z_all;
 
     std::vector<matchedBlock> matchedBlocks;
-};
+}; */
 
 
 
@@ -327,7 +330,7 @@ GFAGraph parsed;
     result.topo = topo;
 
 
-    auto MPC = computeMPC(g);
+    auto MPC = computeMPC(g); //la struttura di MPC è 
 
     result.MPC = MPC;
 
@@ -348,7 +351,10 @@ GFAGraph parsed;
     result.delta = delta;
 
 
-    // BLOCK DECOMPOSITION
+    //posso far diventare questa cosa un ciclo   
+    // BLOCK DECOMPOSITION INIZIALE
+    
+
     int num_paths = delta.size();
 
     BlockDecompose bd;
@@ -356,21 +362,120 @@ GFAGraph parsed;
     for (const auto& z : Z_all) {
 
         matchedBlock mb =
-            bd.BlocksDecompose(
-                z,
-                delta,
-                num_paths
-            );
-
+            //bd.BlocksDecompose(z,delta,num_paths);
+            //bd.BlocksDecomposeBackward(z, delta, num_paths);
+            bd.BlocksDecomposeOptimized(z, delta, num_paths, g, topo);
+            //blockoptimizer
+            // mb =BlockOptimizer::optimizeTinyBlocks(mb,z,topo,delta,g);
         result.matchedBlocks.push_back(mb);
     }
 
+
+
+    
+    // CALCOLO METRICS
+    
+//ciclo per aggiungere X path ogni volta alla MPC
+for(int i = 0; i < 2; i++) //ora dovrebbe aggiungere alla MPC i primi 3 path più frammentati,
+{
+    GraphStatistics stats =
+        Metrics::computeStatistics(
+            result
+        );
+
+
+
+    
+    // REFINEMENT MPC
+    
+        //     DISABILITO L'ARRICCHIMENTO DELLA MPC
+    if (stats.mostFragmentedPath != -1)
+    {
+        // prende la Z più frammentata
+        const auto& fragmentedZ =
+            result.Z_all[
+                stats.mostFragmentedPath
+            ];
+
+        // converte Z in path reale
+        std::vector<int> newPath =
+            convertZtoPath(
+                fragmentedZ,
+                result.topo
+            );
+
+        // aggiunge nuovo path alla MPC
+        result.MPC.push_back(
+            newPath
+        );
+
+
+
+        
+        // RICOSTRUZIONE DELTA
+        
+
+        result.delta =
+            matriceBinaria(
+                result.g,
+                result.MPC,
+                result.topo
+            );
+
+
+
+        
+        // RICOMPUTA BLOCK DECOMPOSITION
+        
+
+        result.matchedBlocks.clear();
+
+        int refined_num_paths =
+            result.delta.size();
+
+        for (const auto& z : result.Z_all)
+        {
+            matchedBlock mb =
+               // bd.BlocksDecompose(z,result.delta,refined_num_paths);
+                //bd.BlocksDecomposeBackward(z, result.delta, refined_num_paths);
+                //blockoptimizer
+             
+                bd.BlocksDecomposeOptimized(z, result.delta, refined_num_paths, result.g, result.topo);
+            result.matchedBlocks.push_back(mb);
+        }
+        //col ciclo che termina qui
+    }
+    else
+        break; // se non c'è una Z frammentata, esce dal ciclo di refinement
+        
+}
+        
     return result;
 }
 
 
 
 private:
+static std::vector<int>
+convertZtoPath(
+    const std::vector<int>& z,
+    const std::vector<int>& topo
+)
+{
+    std::vector<int> path;
+
+    for (int i = 0; i < z.size(); i++) {
+
+        if (z[i] == 1) {
+
+            path.push_back(
+                topo[i]
+            );
+        }
+    }
+
+    return path;
+}
 
 
 
