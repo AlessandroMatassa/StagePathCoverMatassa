@@ -454,9 +454,9 @@ GFAGraph readGFA_W(const std::string& filename)
         std::string type;
         ss >> type;
 
-        // =====================
+        
         // SEGMENTI
-        // =====================
+        
 
         if (type == "S") {
 
@@ -468,9 +468,9 @@ GFAGraph readGFA_W(const std::string& filename)
             g.addNode(name, sequence.size());
         }
 
-        // =====================
+        
         // LINK
-        // =====================
+        
 
         else if (type == "L") {
 
@@ -493,9 +493,9 @@ GFAGraph readGFA_W(const std::string& filename)
             }
         }
 
-        // =====================
+        
         // WALK (FORMATO NUOVO)
-        // =====================
+        
 
         else if (type == "W") {
 

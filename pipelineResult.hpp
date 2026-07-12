@@ -19,6 +19,9 @@ struct PipelineResult {
     std::vector<std::vector<int>> Z_all;
 
     std::vector<matchedBlock> matchedBlocks;
+
+        double fixedTinyBlockThreshold = -1;
+
 };
 
 #endif

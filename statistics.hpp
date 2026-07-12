@@ -15,14 +15,11 @@ static void exportCSV(
     const std::string& outputCSV
 )
 {
-    PipelineResult data =
-        wholeAlgoritmo::runPipelineWithData(inputGFA);
+    PipelineResult data =wholeAlgoritmo::runPipelineWithData(inputGFA);
 
-    GraphStatistics stats =
-        Metrics::computeStatistics(data);
+    GraphStatistics stats =Metrics::computeStatistics(data, data.fixedTinyBlockThreshold);
 
-    std::vector<ZStatistics> zStats =
-        Metrics::computeZStatistics(data);
+    std::vector<ZStatistics> zStats =Metrics::computeZStatistics(data, stats.tinyBlockCharThreshold);
 
     std::ofstream out(outputCSV);
 
@@ -35,9 +32,9 @@ if (!out.is_open()) {
 
 
 
-// ======================================================
+
 // GLOBAL STATS
-// ======================================================
+
 
 out << "GLOBAL_STATS\n";
 
@@ -51,6 +48,9 @@ out << "numNodes;"
     << "medianBlocks;"
     << "averageBlockLength;"
     << "medianBlockLength;"
+    << "averageBlockCharLength;"
+    << "medianBlockCharLength;"
+
     << "maxBlockLength;"
     << "minBlockLength;"
     << "fragmentedPaths;"
@@ -73,6 +73,9 @@ out << stats.numNodes << ";"
     << stats.medianBlocks << ";"
     << stats.averageBlockLength << ";"
     << stats.medianBlockLength << ";"
+
+    << stats.averageBlockCharLength << ";"
+    << stats.medianBlockCharLength << ";"
     << stats.maxBlockLength << ";"
     << stats.minBlockLength << ";"
     << stats.fragmentedPaths << ";"

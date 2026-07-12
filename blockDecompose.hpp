@@ -76,8 +76,8 @@ class BlockDecompose
                         l = (end >= index) ? (end - index + 1) : 0;
                         result.length = l;
 
-                      // result.zStart = index;
-                     //   result.zEnd   = index + l - 1;
+                       result.zStart = index;
+                        result.zEnd   = index + l - 1;
 
 
                 index += l; //aggiorno index spostandomi alla fine del blocco che ho appena trovato, in modo da cercare il prossimo blocco a partire da index
@@ -154,12 +154,12 @@ matchedBlock BlocksDecomposeOptimized(
     const std::vector<int>& topo
 )
 {
-    const int TINY_THRESHOLD = 35;
+    const int TINY_THRESHOLD = 38513/2; //ho impostato sto numero per matchare il risultato della
 
     auto nodeLength = [&](int topoPos) 
     {
         int realNode = topo[topoPos];
-        return (int)g.nodes[realNode].name.size();
+        return g.nodes[realNode].sequenceLength;
     };
 
     int index = 0;
@@ -399,6 +399,7 @@ int contaNodiNelPath(const std::vector<int>& row)
                 int l = result.length;
                 if (result.path != -1) {
                     result.startIndex =currentNodeIndex[result.path] - result.matchedOnes + 1;
+                    result.endIndex =currentNodeIndex[result.path];
                 }
                 /*  
                 
@@ -420,11 +421,20 @@ int contaNodiNelPath(const std::vector<int>& row)
 
                     result.length = l;
 
-                    ////////
-                  //  result.zStart = start;
-                  //  result.zEnd   = index;
-                    ////////
+                    
 
+                    ////////
+                    result.zStart = start;
+                    result.zEnd   = index;
+                    ////////
+                l = (start <= index)
+                ? (index - start + 1)
+                : 0;
+
+            result.length = l;
+
+            result.zStart = start;
+            result.zEnd   = index;
                index -= l; //aggiorno index spostandomi alla fine del blocco che ho appena trovato, in modo da cercare il prossimo blocco a partire da index
                 for (int i = 0; i < l; i++)
                 {    //aggiungo p ripetuto l volte a matched block

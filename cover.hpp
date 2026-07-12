@@ -7,9 +7,9 @@
 #include <unordered_map>
 #include <queue>
 
-// =====================
+
 // Strutture base
-// =====================
+
 //questo struct mi serve per tenere traccia del nodo precedente e se l'arco è forward o backward durante 
 //la ricerca del path da source a sink nel grafo residuo
 struct Parent {
@@ -79,6 +79,74 @@ static std::vector<std::vector<int>> convertMPCtoOriginalGraph(
 
     return result;
 }
+
+static std::vector<int>buildGreedyTinyPath(const Graph& g,const std::vector<int>& topo,const std::vector<int>& tinyNodeScores)
+{
+    int n = g.nodes.size();
+
+    std::vector<int> topoPos(n);
+
+    for (int i = 0; i < topo.size(); i++)
+    {
+        topoPos[topo[i]] = i; // topoPos[v] mi dice la posizione di v nella topological sort
+    }
+
+    std::vector<int> best(n, 0);
+    std::vector<int> next(n, -1); 
+
+    // DP backward sul DAG
+    for (auto it = topo.rbegin();it != topo.rend();++it)
+    {
+        int v = *it;
+
+        int weight =tinyNodeScores[topoPos[v]]; //il peso di un nodo è dato dal suo tinyNodeScore, che è un punteggio che indica quanto è "tiny" il nodo, calcolato in base alla lunghezza del nodo e alla soglia per i tiny block
+
+        best[v] = weight;
+
+        for (const auto& e : g.adj[v])
+        {
+            int candidate =weight +best[e.to];
+
+            if (candidate > best[v])
+            {
+                best[v] = candidate;
+                next[v] = e.to;
+            }
+        }
+        if (next[v] == -1 && !g.adj[v].empty())
+        {
+            next[v] = g.adj[v][0].to;
+        }
+    }
+
+    // source migliore
+    int start = -1;
+    int bestScore = -1;
+
+    for (int v = 0; v < n; v++)
+    {
+        if (g.nodes[v].predecessors.empty() && best[v] > bestScore) // se v è un nodo senza archi entranti e ha un punteggio migliore del migliore trovato finora, aggiorna il nodo di partenza e il punteggio migliore
+        {
+            bestScore = best[v];start = v;
+        }
+    }
+
+    std::vector<int> path;
+
+    int curr = start;
+
+    while (curr != -1) // finché curr è un nodo valido, aggiungi curr al path e aggiorna curr al nodo successivo indicato da next[curr]
+    {
+        path.push_back(curr);
+
+        curr = next[curr];
+    }
+
+    return path; // ritorna il path trovato, che è un path che massimizza la somma dei punteggi dei nodi lungo il path, dove i punteggi sono dati dai tinyNodeScores
+}
+
+
+
 
 
 static std::vector<std::vector<int>> computeInitialPathCover(Graph& g, CoverState& state) {
@@ -177,6 +245,8 @@ static std::vector<std::vector<int>> extractFinalPaths(Graph& g,
 
     return result;
 }
+
+
 
 
 
@@ -400,6 +470,10 @@ static void augmentFlow(Graph& g,
 
 
 //metodo che mi serve per la decomposizione in blocchi
+
+
+
+
 
 
 
