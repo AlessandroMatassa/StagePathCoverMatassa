@@ -380,6 +380,7 @@ for(int i = 0; i < 3; i++) //ora dovrebbe aggiungere alla MPC i primi 3 path piÃ
         fixedThreshold = stats.tinyBlockCharThreshold; 
         result.fixedTinyBlockThreshold =fixedThreshold;
     } 
+    /*
     //GreedyPath 
       if(i !=3) // aggiunge un greedy path alla MPC solo nelle prime due iterazioni, poi esce dal ciclo di refinement
       {
@@ -408,12 +409,12 @@ for(int i = 0; i < 3; i++) //ora dovrebbe aggiungere alla MPC i primi 3 path piÃ
         //col ciclo che termina qui
         stats=Metrics::computeStatistics(result, fixedThreshold);
   }
-    
+    */
 //per i giri di sola greedy path poi rimuovere
 
     
     // REFINEMENT MPC classico
-    if(i==3)
+   // if(i==3)
     {
         //     se c'Ã¨ una Z frammentata, prendi la Z piÃ¹ frammentata, convertila in path reale, aggiungi questo path alla MPC, ricostruisci delta e ricalcola la block decomposition per tutte le Z, altrimenti esci dal ciclo di refinement
     if (stats.mostFragmentedPath != -1)
@@ -444,7 +445,7 @@ for(int i = 0; i < 3; i++) //ora dovrebbe aggiungere alla MPC i primi 3 path piÃ
             matchedBlock mb =
                bd.BlocksDecompose(z,result.delta,refined_num_paths);
                //bd.BlocksDecomposeBackward(z, result.delta, refined_num_paths);
-                //blockoptimizer
+                
              
               //  bd.BlocksDecomposeOptimized(z, result.delta, refined_num_paths, result.g, result.topo);
             result.matchedBlocks.push_back(mb);
